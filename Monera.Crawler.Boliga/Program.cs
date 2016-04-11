@@ -355,7 +355,7 @@ namespace Monera.Crawler.Boliga
                 result.KvmprisOmradet = kvmprisOmradet;
             }
 
-            lock ( _properties)
+            lock (_properties)
             {
                 _properties.Add(url, result);
             }
@@ -369,6 +369,8 @@ namespace Monera.Crawler.Boliga
 
                 var response = await client.GetAsync(uri);
                 var responseString = await response.Content.ReadAsStringAsync();
+
+                _properties = new Dictionary<string, BoligaProperty>();
 
                 HtmlDocument htmlDoc = new HtmlDocument {OptionFixNestedTags = true};
                 htmlDoc.LoadHtml(responseString);
@@ -385,6 +387,7 @@ namespace Monera.Crawler.Boliga
                 else
                 {
                     Parallel.ForEach(GetProrertyUrls(htmlDoc), GetPropertyData);
+                    htmlDoc = null;
                     lock (_properties)
                     {
                         foreach (var p in _properties)
@@ -396,7 +399,9 @@ namespace Monera.Crawler.Boliga
                             _pbar.Tick("Properties processed " + _counter);
                         }
                         _properties.Clear();
+                        _properties = null;
                     }
+                    GC.Collect();
 
                     foreach (int pn in newPageNumbers)
                     {
@@ -412,6 +417,7 @@ namespace Monera.Crawler.Boliga
         {
             try
             {
+                Console.Clear();
                 Console.ForegroundColor = ConsoleColor.Green;
                 DateTime startDateTime = DateTime.Now;
                 Console.WriteLine($"Boliga crawler started at - {startDateTime}");
@@ -421,7 +427,6 @@ namespace Monera.Crawler.Boliga
                 _siteUrl = new Uri(_startUrl).Host;
                 _searchGuid = new Guid(_startUrl.Split('/').Last());
                 _pageNumbers = new List<int>();
-                _properties = new Dictionary<string, BoligaProperty>();
                 _counter = 0;
                 _totalPropertiesCount = 0;
 
