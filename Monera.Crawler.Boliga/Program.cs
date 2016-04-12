@@ -414,6 +414,9 @@ namespace Monera.Crawler.Boliga
                         }
                     });
 
+                    htmlDoc = null;
+                    GC.Collect();
+
                     using (TransactionScope scope = new TransactionScope())
                     {
                         BoligaDBEntities context = null;
