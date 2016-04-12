@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 using ShellProgressBar;
@@ -20,13 +21,20 @@ namespace Monera.Crawler.Boliga
         private static Dictionary<string, BoligaProperty> _properties;
         private static int _totalPropertiesCount;
         private static int _counter;
+        private static CultureInfo _danishCulture;
+        private static readonly string[] _procentStr = new string[] { "% " };
+        private static readonly string[] _brStr = new string[] {"<br>"};
+        private static readonly string[] _strongBrStr = new string[] { "</strong><br>" };
+        private static readonly string[] _brRN = new string[] {"<br>\r\n"};
+        private static readonly string[] _small = new string[] { "<small>" };
+        private static readonly string[] _krm = new string[] { "kr./m&sup2;" };
+        private static readonly string[] _msup2 = new string[] { "m&sup2;" };
         private static ProgressBar _pbar;
         private static readonly BoligaDBEntities _db = new BoligaDBEntities();
 
         private static int GetTotalPropertiesCount(HtmlDocument doc)
         {
             int result = 0;
-            CultureInfo danishCulture = new CultureInfo("da-DK");
 
             HtmlNode hn = doc.DocumentNode.SelectSingleNode("//table[@class='searchresultpaging'][1]/tr/td[2]/label[1]/p");
             string totalPropertiesCountStr =
@@ -36,7 +44,7 @@ namespace Monera.Crawler.Boliga
                         .Trim();
 
             result = totalPropertiesCountStr != null
-                ? int.Parse(totalPropertiesCountStr, NumberStyles.Number, danishCulture)
+                ? int.Parse(totalPropertiesCountStr, NumberStyles.Number, _danishCulture)
                 : 0;
 
             return result;
@@ -101,13 +109,13 @@ namespace Monera.Crawler.Boliga
                 SogeresultaterGuid = _searchGuid
                 ,Link = $"http://{_siteUrl}{url}"
             };
-            CultureInfo danishCulture = new CultureInfo("da-DK");
 
             using (var client = new HttpClient())
             {
                 var uri = new Uri($"http://{_siteUrl}/{url}");
 
                 var response = client.GetAsync(uri).Result;
+                uri = null;
                 var responseString = response.Content.ReadAsStringAsync().Result;
 
                 HtmlDocument htmlDoc = new HtmlDocument { OptionFixNestedTags = true };
@@ -153,39 +161,39 @@ namespace Monera.Crawler.Boliga
                 {
                     kontantprisSrt = kontantprisNode?.InnerText.Split(' ')[0];
                 }
-                decimal? kontantpris = kontantprisSrt != null ? decimal.Parse(kontantprisSrt, danishCulture) : (decimal?)null;
+                decimal? kontantpris = kontantprisSrt != null ? decimal.Parse(kontantprisSrt, _danishCulture) : (decimal?)null;
 
                 HtmlNode ejerudgiftNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//*[text()[contains(.,'Ejerudgift')]]");
                 string ejerudgiftStr = null;
-                if (ejerudgiftNode?.InnerHtml.Split(new string[] {"<br>\r\n"}, StringSplitOptions.None).Length > 1
+                if (ejerudgiftNode?.InnerHtml.Split(_brRN, StringSplitOptions.None).Length > 1
                     && ejerudgiftNode?.InnerHtml
-                    .Split(new string[] { "<br>\r\n" }, StringSplitOptions.None)[1]
-                    .Split(new string[] { "<small>" }, StringSplitOptions.None).Length > 1)
+                    .Split(_brRN, StringSplitOptions.None)[1]
+                    .Split(_small, StringSplitOptions.None).Length > 1)
                 {
                     ejerudgiftStr =
                     ejerudgiftNode?.InnerHtml
-                        .Split(new string[] { "<br>\r\n" }, StringSplitOptions.None)[1]
-                        .Split(new string[] { "<small>" }, StringSplitOptions.None)[0]
+                        .Split(_brRN, StringSplitOptions.None)[1]
+                        .Split(_small, StringSplitOptions.None)[0]
                         .Trim();
                 }
-                decimal? ejerudgift = ejerudgiftStr != null ? decimal.Parse(ejerudgiftStr, danishCulture) : (decimal?) null;
+                decimal? ejerudgift = ejerudgiftStr != null ? decimal.Parse(ejerudgiftStr, _danishCulture) : (decimal?) null;
 
                 HtmlNode kvmprisNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//table[@class='table estate-table']/tr/td[.='Kvmpris']/following-sibling::td");
                 string kvmprisStr = null;
-                if (kvmprisNode?.InnerText.Split(new string[] { "<small>" }, StringSplitOptions.None).Length > 1
-                    && kvmprisNode?.InnerText.Split(new string[] { "<small>" }, StringSplitOptions.None)[0]
-                    .Split(new string[] { "kr./m&sup2;" }, StringSplitOptions.None).Length > 1)
+                if (kvmprisNode?.InnerText.Split(_small, StringSplitOptions.None).Length > 1
+                    && kvmprisNode?.InnerText.Split(_small, StringSplitOptions.None)[0]
+                    .Split(_krm, StringSplitOptions.None).Length > 1)
                 {
                     kvmprisStr = kvmprisNode?.InnerText
-                    .Split(new string[] { "<small>" }, StringSplitOptions.None)[0]
-                    .Split(new string[] { "kr./m&sup2;" }, StringSplitOptions.None)[0]
+                    .Split(_small, StringSplitOptions.None)[0]
+                    .Split(_krm, StringSplitOptions.None)[0]
                     .Trim();
                 }
-                decimal? kvmpris = kvmprisStr != null ? decimal.Parse(kvmprisStr, danishCulture) : (decimal?) null;
+                decimal? kvmpris = kvmprisStr != null ? decimal.Parse(kvmprisStr, _danishCulture) : (decimal?) null;
 
                 HtmlNode typeNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
@@ -196,24 +204,27 @@ namespace Monera.Crawler.Boliga
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//table[@class='table estate-table']/tr/td[.='Bolig']/following-sibling::td");
                 string boligStr = boligNode?.InnerText
-                    .Split(new string[] { "m&sup2;" }, StringSplitOptions.None)[0]
+                    .Split(_msup2, StringSplitOptions.None)[0]
                     .Trim();
-                int? bolig = boligStr != null ? int.Parse(boligStr, NumberStyles.Number, danishCulture) : (int?)null;
+                boligStr = boligStr != null ? Regex.Replace(boligStr, @"[^\d]", "") : null;
+                int? bolig = boligStr != null ? int.Parse(boligStr, NumberStyles.Number, _danishCulture) : (int?)null;
 
                 HtmlNode grundNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//table[@class='table estate-table']/tr/td[.='Grund']/following-sibling::td");
                 string grundStr = grundNode?.InnerText
-                    .Split(new string[] { "m&sup2;" }, StringSplitOptions.None)[0]
+                    .Split(_msup2, StringSplitOptions.None)[0]
                     .Trim();
-                int? grund = grundStr != null ? int.Parse(grundStr, NumberStyles.Number, danishCulture) : (int?)null;
+                grundStr = grundStr != null ? Regex.Replace(grundStr, @"[^\d]", "") : null;
+                int? grund = grundStr != null ? int.Parse(grundStr, NumberStyles.Number, _danishCulture) : (int?)null;
 
                 HtmlNode vaerelserNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//table[@class='table estate-table']/tr/td[.='Værelser']/following-sibling::td");
                 string vaerelserStr = vaerelserNode?.InnerText
                     .Trim();
-                int? vaerelser = vaerelserStr != null ? int.Parse(vaerelserStr, NumberStyles.Number, danishCulture) : (int?)null;
+                vaerelserStr = vaerelserStr != null ? Regex.Replace(vaerelserStr, @"[^\d]", "") : null;
+                int? vaerelser = vaerelserStr != null ? int.Parse(vaerelserStr, NumberStyles.Number, _danishCulture) : (int?)null;
 
                 HtmlNode etageNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
@@ -225,7 +236,8 @@ namespace Monera.Crawler.Boliga
                         "//table[@class='table estate-table']/tr/td[.='Byggeår']/following-sibling::td");
                 string byggearStr = byggearNode?.InnerText
                     .Trim();
-                int? byggear = byggearStr != null ? int.Parse(byggearStr, NumberStyles.Number, danishCulture) : (int?)null;
+                byggearStr = byggearStr != null ? Regex.Replace(byggearStr, @"[^\d]", "") : null;
+                int? byggear = byggearStr != null ? int.Parse(byggearStr, NumberStyles.Number, _danishCulture) : (int?)null;
 
                 HtmlNode oprettetNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
@@ -239,7 +251,8 @@ namespace Monera.Crawler.Boliga
                         "//table[@class='table estate-table']/tr/td[.='Liggetid']/following-sibling::td");
                 string liggetidStr = liggetidNode?.InnerText
                     .Split(' ')[0];
-                int? liggetid = liggetidStr != null ? int.Parse(liggetidStr, NumberStyles.Number, danishCulture) : (int?)null;
+                liggetidStr = liggetidStr != null ? Regex.Replace(liggetidStr, @"[^\d]", "") : null;
+                int? liggetid = liggetidStr != null ? int.Parse(liggetidStr, NumberStyles.Number, _danishCulture) : (int?)null;
 
                 HtmlNode brokerLinkNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
@@ -256,12 +269,12 @@ namespace Monera.Crawler.Boliga
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//div[@class='estate-50 margin-top margin-right agent-box fill']/div[@class='wrapper']");
                 string butikAdresseStr = null;
-                if (butikAdresseNode?.InnerHtml.Split(new string[] {"</strong><br>"}, StringSplitOptions.None).Length > 1
-                    && butikAdresseNode?.InnerHtml.Split(new string[] { "<br>" }, StringSplitOptions.None).Length > 1)
+                if (butikAdresseNode?.InnerHtml.Split(_strongBrStr, StringSplitOptions.None).Length > 1
+                    && butikAdresseNode?.InnerHtml.Split(_brStr, StringSplitOptions.None).Length > 1)
                 {
                     butikAdresseStr = butikAdresseNode?.InnerHtml
-                        .Split(new string[] { "</strong><br>" }, StringSplitOptions.None)[1]
-                        .Split(new string[] { "<br>" }, StringSplitOptions.None)[0]
+                        .Split(_strongBrStr, StringSplitOptions.None)[1]
+                        .Split(_brStr, StringSplitOptions.None)[0]
                         .Trim();
                 }
                 string butikAdresse = butikAdresseStr != null ? WebUtility.HtmlDecode(butikAdresseStr.Trim()) : null;
@@ -270,15 +283,15 @@ namespace Monera.Crawler.Boliga
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//div[@class='estate-50 margin-top margin-right agent-box fill']/div[@class='wrapper']");
                 string butikPostnrStr = null;
-                if (butikPostnrNode?.InnerHtml.Split(new string[] { "</strong><br>" }, StringSplitOptions.None).Length > 1
-                    && butikPostnrNode?.InnerHtml.Split(new string[] { "</strong><br>" }, StringSplitOptions.None)[1]
-                    .Split(new string[] { "<br>" }, StringSplitOptions.None).Length > 1)
+                if (butikPostnrNode?.InnerHtml.Split(_strongBrStr, StringSplitOptions.None).Length > 1
+                    && butikPostnrNode?.InnerHtml.Split(_strongBrStr, StringSplitOptions.None)[1]
+                    .Split(_brStr, StringSplitOptions.None).Length > 1)
                 {
                     butikPostnrStr = butikPostnrNode?.InnerHtml
                     .Replace("\r\n", "")
                     .Trim()
-                    .Split(new string[] { "</strong><br>" }, StringSplitOptions.None)[1]
-                    .Split(new string[] { "<br>" }, StringSplitOptions.None)[1]
+                    .Split(_strongBrStr, StringSplitOptions.None)[1]
+                    .Split(_brStr, StringSplitOptions.None)[1]
                     .Trim()
                     .Split(' ')[0]
                     .Trim();
@@ -289,47 +302,47 @@ namespace Monera.Crawler.Boliga
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//div[@class='estate-50 margin-top margin-right agent-box fill']/div[@class='wrapper']");
                 string butikPostnrTitelStr = null;
-                if (butikPostnrTitelNode?.InnerHtml.Replace("\r\n", "").Trim().Split(new string[] { "</strong><br>" }, StringSplitOptions.None).Length > 1
-                    && butikPostnrTitelNode?.InnerHtml.Replace("\r\n", "").Trim().Split(new string[] { "</strong><br>" }, StringSplitOptions.None)[1]
-                    .Split(new string[] { "<br>" }, StringSplitOptions.None).Length > 1
-                    && butikPostnrTitelNode?.InnerHtml.Replace("\r\n", "").Trim().Split(new string[] { "</strong><br>" }, StringSplitOptions.None)[1]
-                    .Split(new string[] { "<br>" }, StringSplitOptions.None)[1].Split(' ')[1].Length > 1)
+                if (butikPostnrTitelNode?.InnerHtml.Replace("\r\n", "").Trim().Split(_strongBrStr, StringSplitOptions.None).Length > 1
+                    && butikPostnrTitelNode?.InnerHtml.Replace("\r\n", "").Trim().Split(_strongBrStr, StringSplitOptions.None)[1]
+                    .Split(_brStr, StringSplitOptions.None).Length > 1
+                    && butikPostnrTitelNode?.InnerHtml.Replace("\r\n", "").Trim().Split(_strongBrStr, StringSplitOptions.None)[1]
+                    .Split(_brStr, StringSplitOptions.None)[1].Split(' ')[1].Length > 1)
                 {
                     butikPostnrTitelStr = butikPostnrTitelNode?.InnerHtml
                     .Replace("\r\n", "")
                     .Trim()
-                    .Split(new string[] { "</strong><br>" }, StringSplitOptions.None)[1]
-                    .Split(new string[] { "<br>" }, StringSplitOptions.None)[1]
+                    .Split(_strongBrStr, StringSplitOptions.None)[1]
+                    .Split(_brStr, StringSplitOptions.None)[1]
                     .Trim()
                     .Split(' ')[1]
                     .Trim();
                 }
-                string butikPostnrTitel = butikPostnrTitelStr;
+                string butikPostnrTitel = WebUtility.HtmlDecode(butikPostnrTitelStr);
 
                 HtmlNode prisforskelProcentdelNode =
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//div[@class='estate-50 margin-top gauge-box fill']/div[@class='wrapper']/strong");
                 int? prisforskelProcentdel = null;
-                if (prisforskelProcentdelNode?.InnerText.Split(new string[] { "% " }, StringSplitOptions.None).Length > 1
-                    && prisforskelProcentdelNode?.InnerText.Split(new string[] { "% " }, StringSplitOptions.None).Length > 1)
+                if (prisforskelProcentdelNode?.InnerText.Split(_procentStr, StringSplitOptions.None).Length > 1
+                    && prisforskelProcentdelNode?.InnerText.Split(_procentStr, StringSplitOptions.None).Length > 1)
                 {
                     string prisforskelProcentdelNumber = prisforskelProcentdelNode.InnerText
-                    .Split(new string[] { "% " }, StringSplitOptions.None)[0];
+                    .Split(_procentStr, StringSplitOptions.None)[0];
                     string prisforskelProcentdelPlusMinus = prisforskelProcentdelNode.InnerText
-                        .Split(new string[] { "% " }, StringSplitOptions.None)[1];
+                        .Split(_procentStr, StringSplitOptions.None)[1];
                     prisforskelProcentdelNumber = prisforskelProcentdelPlusMinus == "lavere" ? $"-{prisforskelProcentdelNumber}" : prisforskelProcentdelNumber;
-                    prisforskelProcentdel = prisforskelProcentdelNumber != null ? int.Parse(prisforskelProcentdelNumber, NumberStyles.Number, danishCulture) : (int?)null;
+                    prisforskelProcentdel = prisforskelProcentdelNumber != null ? int.Parse(prisforskelProcentdelNumber, NumberStyles.Number, _danishCulture) : (int?)null;
                 }
 
                 HtmlNode kvmprisBoligenNode =
                     htmlDoc.DocumentNode.SelectSingleNode("//table[@class='table table-compare']/tr/td[contains(.,'Kvmpris boligen')]/following-sibling::td/strong");
                 string kvmprisBoligenStr = kvmprisBoligenNode?.InnerText;
-                decimal? kvmprisBoligen = kvmprisBoligenStr != null ? decimal.Parse(kvmprisBoligenStr, danishCulture) : (decimal?)null;
+                decimal? kvmprisBoligen = kvmprisBoligenStr != null ? decimal.Parse(kvmprisBoligenStr, _danishCulture) : (decimal?)null;
 
                 HtmlNode kvmprisOmradetNode =
                     htmlDoc.DocumentNode.SelectSingleNode("//table[@class='table table-compare']/tr/td[contains(.,'Kvmpris området')]/following-sibling::td/strong");
                 string kvmprisOmradetNodeStr = kvmprisOmradetNode?.InnerText;
-                decimal? kvmprisOmradet = kvmprisOmradetNodeStr != null ? decimal.Parse(kvmprisOmradetNodeStr, danishCulture) : (decimal?)null;
+                decimal? kvmprisOmradet = kvmprisOmradetNodeStr != null ? decimal.Parse(kvmprisOmradetNodeStr, _danishCulture) : (decimal?)null;
 
                 result.Titel = titel;
                 result.Postnr = postnr;
@@ -353,6 +366,9 @@ namespace Monera.Crawler.Boliga
                 result.PrisforskelProcentdel = prisforskelProcentdel;
                 result.KvmprisBoligen = kvmprisBoligen;
                 result.KvmprisOmradet = kvmprisOmradet;
+
+                htmlDoc = null;
+                GC.Collect();
             }
 
             lock (_properties)
@@ -388,6 +404,7 @@ namespace Monera.Crawler.Boliga
                 {
                     Parallel.ForEach(GetProrertyUrls(htmlDoc), GetPropertyData);
                     htmlDoc = null;
+
                     lock (_properties)
                     {
                         foreach (var p in _properties)
@@ -401,12 +418,18 @@ namespace Monera.Crawler.Boliga
                         _properties.Clear();
                         _properties = null;
                     }
+
                     GC.Collect();
 
                     foreach (int pn in newPageNumbers)
                     {
                         await GetSearchPage(pn);
                     }
+
+                    newPageNumbers.Clear();
+                    newPageNumbers = null;
+
+                    GC.Collect();
                 }
             }
 
@@ -429,6 +452,7 @@ namespace Monera.Crawler.Boliga
                 _pageNumbers = new List<int>();
                 _counter = 0;
                 _totalPropertiesCount = 0;
+                _danishCulture = new CultureInfo("da-DK");
 
                 Task.Run(async () =>
                 {
