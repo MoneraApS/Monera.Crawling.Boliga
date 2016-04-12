@@ -37,7 +37,7 @@ namespace Monera.Crawler.Boliga
         {
             int result;
 
-            using (var client = new HttpClient())
+            using (var client = new HttpClient(new RetryHandler(new HttpClientHandler())))
             {
                 var uri = new Uri($"{_startUrl}");
 
@@ -124,7 +124,7 @@ namespace Monera.Crawler.Boliga
                 Link = $"http://{_siteUrl}{url}"
             };
 
-            using (var client = new HttpClient())
+            using (var client = new HttpClient(new RetryHandler(new HttpClientHandler())))
             {
                 var uri = new Uri($"http://{_siteUrl}/{url}");
 
@@ -386,7 +386,7 @@ namespace Monera.Crawler.Boliga
 
         private static async Task<bool> GetSearchPage(int pageNumber)
         {
-            using (var client = new HttpClient())
+            using (var client = new HttpClient(new RetryHandler(new HttpClientHandler())))
             {
                 var uri = new Uri($"{_startUrl}?page={pageNumber}");
 
@@ -404,7 +404,14 @@ namespace Monera.Crawler.Boliga
                     ConcurrentDictionary<string, BoligaProperty> properties = new ConcurrentDictionary<string, BoligaProperty>();
                     Parallel.ForEach(GetProrertyUrls(htmlDoc), url =>
                     {
-                        properties.TryAdd(url, GetPropertyData(url));
+                        try
+                        {
+                            properties.TryAdd(url, GetPropertyData(url));
+                        }
+                        catch (Exception)
+                        {
+                            // ignored
+                        }
                     });
 
                     using (TransactionScope scope = new TransactionScope())
