@@ -197,13 +197,10 @@ namespace Monera.Crawler.Boliga
                     htmlDoc.DocumentNode.SelectSingleNode(
                         "//table[@class='table estate-table']/tr/td[.='Kvmpris']/following-sibling::td");
                 string kvmprisStr = null;
-                if (kvmprisNode?.InnerText.Split(Small, StringSplitOptions.None).Length > 1
-                    && kvmprisNode?.InnerText.Split(Small, StringSplitOptions.None)[0]
-                    .Split(Krm, StringSplitOptions.None).Length > 1)
+                if (kvmprisNode?.InnerText.Split(' ').Length > 1)
                 {
                     kvmprisStr = kvmprisNode?.InnerText
-                    .Split(Small, StringSplitOptions.None)[0]
-                    .Split(Krm, StringSplitOptions.None)[0]
+                    .Split(' ')[0]
                     .Trim();
                 }
                 decimal? kvmpris = kvmprisStr != null ? decimal.Parse(kvmprisStr, _danishCulture) : (decimal?)null;
